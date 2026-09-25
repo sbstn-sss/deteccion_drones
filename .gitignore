@@ -1,0 +1,39 @@
+# Dataset y modelos (viven en Drive, no en git)
+archive.zip
+*.pt
+*.zip
+dataset/
+runs/
+
+# Python
+__pycache__/
+*.py[cod]
+*.egg-info/
+.venv/
+venv/
+
+# Jupyter / Colab
+.ipynb_checkpoints/
+*.ipynb_checkpoints/
+
+# OS / editor
+.DS_Store
+Thumbs.db
+.vscode/
+.idea/
+
+# Secrets
+secrets/
+wandb_key.txt
+.env
+
+# opencode / skills (no parte del proyecto)
+.agents/
+skills-lock.json
+
+# claudio
+.claude/
+
+# carpetas 
+investigacion/
+outdated/
