@@ -1,7 +1,0 @@
-ultralytics>=8.3.0
-wandb
-pyyaml
-pandas
-matplotlib
-opencv-python
-torch
