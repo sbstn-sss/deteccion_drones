@@ -38,11 +38,19 @@ def drive_path(p: str | Path) -> Path:
     return p if p.is_absolute() else DRIVE_ROOT / p
 
 
+def _is_done(dest: Path) -> bool:
+    return (dest / ".done").exists()
+
+
+def _mark_done(dest: Path) -> None:
+    (dest / ".done").touch()
+
+
 def unzip_once(zip_path: str | Path, dest: str | Path) -> Path:
-    """Descomprime zip_path en dest si dest no existe o esta vacio."""
+    """Descomprime zip_path en dest si dest/.done no existe (una extraccion cortada a la mitad se re-hace)."""
     zip_path = Path(zip_path)
     dest = Path(dest)
-    if dest.exists() and any(dest.iterdir()):
+    if _is_done(dest):
         return dest
     if not zip_path.exists():
         raise FileNotFoundError(f"No se encontro el zip: {zip_path}")
@@ -50,14 +58,15 @@ def unzip_once(zip_path: str | Path, dest: str | Path) -> Path:
     start = time.time()
     with zipfile.ZipFile(zip_path) as zf:
         zf.extractall(dest)
+    _mark_done(dest)
     print(f"Descomprimido {zip_path} -> {dest} en {time.time() - start:.1f}s")
     return dest
 
 
 def kaggle_download_once(slug: str, dest: str | Path) -> Path:
-    """Descarga y descomprime un dataset de Kaggle en dest si dest no existe o esta vacio."""
+    """Descarga y descomprime un dataset de Kaggle en dest si dest/.done no existe."""
     dest = Path(dest)
-    if dest.exists() and any(dest.iterdir()):
+    if _is_done(dest):
         return dest
 
     if IN_COLAB:
@@ -83,6 +92,7 @@ def kaggle_download_once(slug: str, dest: str | Path) -> Path:
     api = KaggleApi()
     api.authenticate()
     api.dataset_download_files(slug, path=str(dest), unzip=True, quiet=False)
+    _mark_done(dest)
     return dest
 
 

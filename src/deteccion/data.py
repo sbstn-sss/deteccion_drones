@@ -154,8 +154,12 @@ def add_image_sizes(images: pd.DataFrame, sample: int | None = None, seed: int =
 
 
 def add_pixel_sizes(boxes: pd.DataFrame, images: pd.DataFrame) -> pd.DataFrame:
-    """Agrega w_px, h_px, area_px, size_bucket (criterio COCO) a partir de width/height de `images`."""
+    """Agrega w_px, h_px, area_px, size_bucket (criterio COCO) a partir de width/height de `images`.
+
+    Cajas cuya imagen no tiene tamano (fuera del sample de add_image_sizes) se descartan.
+    """
     merged = boxes.merge(images[["image_path", "width", "height"]], on="image_path", how="left")
+    merged = merged.dropna(subset=["width", "height"])
     merged["w_px"] = merged["w"] * merged["width"]
     merged["h_px"] = merged["h"] * merged["height"]
     merged["area_px"] = merged["w_px"] * merged["h_px"]

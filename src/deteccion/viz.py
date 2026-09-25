@@ -117,7 +117,8 @@ def plot_boxes_per_image(boxes: pd.DataFrame, images: pd.DataFrame) -> Figure:
 
 
 def plot_image_sizes(images: pd.DataFrame) -> Figure:
-    """Conteo de resoluciones (width x height) distintas."""
+    """Conteo de resoluciones (width x height) distintas. Ignora filas sin width/height."""
+    images = images.dropna(subset=["width", "height"])
     sizes = images.apply(lambda r: f"{int(r['width'])}x{int(r['height'])}", axis=1)
     counts = sizes.value_counts()
     fig, ax = plt.subplots(figsize=(max(6, 0.5 * len(counts)), 5))
