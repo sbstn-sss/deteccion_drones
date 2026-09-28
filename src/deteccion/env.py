@@ -6,7 +6,7 @@ import os
 import sys
 import time
 import zipfile
-from pathlib import Path
+from pathlib import Path, PurePosixPath
 
 import yaml
 
@@ -96,6 +96,16 @@ def kaggle_download_once(slug: str, dest: str | Path) -> Path:
     return dest
 
 
+def _rebase(p: PurePosixPath, root: Path) -> str:
+    """Ruta absoluta de otra maquina -> la cola mas larga que existe bajo root (relativa). Si ninguna, la deja igual."""
+    parts = p.parts[1:]
+    for i in range(len(parts)):
+        tail = PurePosixPath(*parts[i:])
+        if (root / tail).exists():
+            return str(tail)
+    return str(p)
+
+
 def fix_data_yaml(yaml_path: str | Path, root: str | Path | None = None) -> Path:
     """Corrige el campo 'path' de un data.yaml de YOLO y escribe '<stem>_local.yaml' (no toca el original)."""
     yaml_path = Path(yaml_path)
@@ -103,6 +113,12 @@ def fix_data_yaml(yaml_path: str | Path, root: str | Path | None = None) -> Path
         data = yaml.safe_load(f)
 
     data["path"] = str(root) if root is not None else str(yaml_path.parent)
+
+    # Algunos yaml (ej HIT-UAV de Kaggle) traen splits absolutos de la maquina del autor (/tmp/dataset/images/train).
+    for split in ("train", "val", "test"):
+        value = data.get(split)
+        if isinstance(value, str) and PurePosixPath(value).is_absolute() and not Path(value).exists():
+            data[split] = _rebase(PurePosixPath(value), Path(data["path"]))
 
     out_path = yaml_path.with_name(f"{yaml_path.stem}_local.yaml")
     with open(out_path, "w", encoding="utf-8") as f:

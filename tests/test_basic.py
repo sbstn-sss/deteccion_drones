@@ -94,6 +94,28 @@ def test_fix_data_yaml():
     print("test_fix_data_yaml OK")
 
 
+def test_fix_data_yaml_splits_absolutos():
+    with tempfile.TemporaryDirectory() as tmp:
+        tmp = Path(tmp)
+        (tmp / "images" / "train").mkdir(parents=True)
+        yaml_path = tmp / "dataset.yaml"
+        yaml_path.write_text(yaml.safe_dump({
+            "path": "/tmp/dataset",
+            "train": "/tmp/dataset/images/train",
+            "val": "/tmp/dataset/images/val",  # no existe localmente: se deja igual
+            "names": ["Person"],
+        }))
+
+        fixed = yaml.safe_load(env.fix_data_yaml(yaml_path).read_text())
+        assert fixed["train"] == "images/train", fixed["train"]
+        assert fixed["val"] == "/tmp/dataset/images/val", fixed["val"]
+
+        d = data.load_data_yaml(tmp / "dataset_local.yaml")
+        assert d["splits"]["train"] == tmp / "images" / "train", d["splits"]["train"]
+
+    print("test_fix_data_yaml_splits_absolutos OK")
+
+
 def test_add_pixel_sizes_sample():
     with tempfile.TemporaryDirectory() as tmp:
         tmp = Path(tmp)
@@ -161,6 +183,7 @@ if __name__ == "__main__":
     test_load_boxes()
     test_index_split()
     test_fix_data_yaml()
+    test_fix_data_yaml_splits_absolutos()
     test_add_pixel_sizes_sample()
     test_unzip_once()
     print("Todos los tests pasaron.")
