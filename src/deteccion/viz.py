@@ -70,6 +70,7 @@ def show_samples(images: pd.DataFrame, boxes: pd.DataFrame, names: dict, n: int 
         ax.axis("off")
 
     fig.tight_layout()
+    plt.close(fig)  # Jupyter muestra la Figure devuelta; sin esto sale duplicada
     return fig
 
 
@@ -82,6 +83,7 @@ def plot_class_counts(boxes: pd.DataFrame, names: dict) -> Figure:
     ax.set_ylabel("n_boxes")
     ax.set_title("Cajas por clase y split")
     fig.tight_layout()
+    plt.close(fig)  # Jupyter muestra la Figure devuelta; sin esto sale duplicada
     return fig
 
 
@@ -101,6 +103,7 @@ def plot_box_sizes(boxes_px: pd.DataFrame) -> Figure:
     ax2.set_title("Cajas por tamano (COCO)")
 
     fig.tight_layout()
+    plt.close(fig)  # Jupyter muestra la Figure devuelta; sin esto sale duplicada
     return fig
 
 
@@ -113,6 +116,7 @@ def plot_boxes_per_image(boxes: pd.DataFrame, images: pd.DataFrame) -> Figure:
     ax.set_ylabel("n_imagenes")
     ax.set_title("Cajas por imagen")
     fig.tight_layout()
+    plt.close(fig)  # Jupyter muestra la Figure devuelta; sin esto sale duplicada
     return fig
 
 
@@ -128,6 +132,7 @@ def plot_image_sizes(images: pd.DataFrame) -> Figure:
     ax.set_title("Resoluciones de imagen")
     plt.setp(ax.get_xticklabels(), rotation=45, ha="right")
     fig.tight_layout()
+    plt.close(fig)  # Jupyter muestra la Figure devuelta; sin esto sale duplicada
     return fig
 
 
@@ -186,4 +191,5 @@ def show_pred_vs_gt(
         axes[1, col].axis("off")
 
     fig.tight_layout()
+    plt.close(fig)  # Jupyter muestra la Figure devuelta; sin esto sale duplicada
     return fig
