@@ -179,6 +179,52 @@ def test_unzip_once():
     print("test_unzip_once OK")
 
 
+def test_run_name():
+    from deteccion.experiment import ExperimentConfig
+
+    cfg = ExperimentConfig(data_yaml="/content/datasets/visdrone/VisDrone_Dataset/visdrone_local.yaml",
+                           out_dir="runs", model="yolo11s.pt", imgsz=1024)
+    assert cfg.run_name("20260925-1530") == "visdrone_yolo11s_1024_20260925-1530", cfg.run_name("20260925-1530")
+    cfg.tag = "cosLR"
+    assert cfg.run_name("20260925-1530") == "visdrone_yolo11s_1024_cosLR_20260925-1530", cfg.run_name("20260925-1530")
+
+    print("test_run_name OK")
+
+
+def test_list_runs_y_load():
+    from deteccion.experiment import Experiment, list_runs
+
+    with tempfile.TemporaryDirectory() as tmp:
+        out = Path(tmp)
+        args = {"data": "/content/x/visdrone.yaml", "model": "yolo11s.pt", "epochs": 50, "imgsz": 1024, "batch": 8}
+
+        viejo = out / "yolo11s_visdrone_tracking_opt-8"  # run viejo: columnas con espacios, con best.pt
+        (viejo / "weights").mkdir(parents=True)
+        (viejo / "weights" / "best.pt").write_bytes(b"")
+        (viejo / "args.yaml").write_text(yaml.safe_dump(args))
+        (viejo / "results.csv").write_text(
+            "  epoch,  metrics/mAP50(B),  metrics/mAP50-95(B)\n1,0.30,0.15\n2,0.40,0.22\n3,0.38,0.21\n"
+        )
+
+        cortado = out / "visdrone_yolo11s_640_20260928-1000"  # run sin results.csv
+        cortado.mkdir()
+        (cortado / "args.yaml").write_text(yaml.safe_dump(args))
+
+        (out / "no_es_run").mkdir()  # sin args.yaml: se ignora
+
+        runs = list_runs(out, sort="mAP50-95")
+        assert list(runs["name"]) == [viejo.name, cortado.name], list(runs["name"])
+        assert runs.loc[0, "epochs_done"] == 3 and abs(runs.loc[0, "mAP50-95"] - 0.22) < 1e-9
+        assert runs.loc[0, "has_best"] and not runs.loc[1, "has_best"]
+        assert pd.isna(runs.loc[1, "mAP50"]) and runs.loc[1, "epochs_done"] == 0
+
+        exp = Experiment.load(viejo, data_yaml="/content/datasets/visdrone/v_local.yaml")
+        assert exp.run_dir == viejo and exp.best.exists()
+        assert exp.cfg.imgsz == 1024 and exp.cfg.data_yaml == "/content/datasets/visdrone/v_local.yaml"
+
+    print("test_list_runs_y_load OK")
+
+
 if __name__ == "__main__":
     test_load_boxes()
     test_index_split()
@@ -186,4 +232,6 @@ if __name__ == "__main__":
     test_fix_data_yaml_splits_absolutos()
     test_add_pixel_sizes_sample()
     test_unzip_once()
+    test_run_name()
+    test_list_runs_y_load()
     print("Todos los tests pasaron.")
