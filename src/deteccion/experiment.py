@@ -38,7 +38,10 @@ class ExperimentConfig:
 
     def run_name(self, stamp: str) -> str:
         """'{dataset}_{modelo}_{imgsz}[_{tag}]_{stamp}', ej 'visdrone_yolo11s_1024_cosLR_20260925-1530'."""
-        dataset = Path(self.data_yaml).stem.removesuffix("_local")
+        yaml_path = Path(self.data_yaml)
+        dataset = yaml_path.stem.removesuffix("_local")
+        if dataset in ("data", "dataset"):  # nombre generico (ej HIT-UAV): usar la carpeta, "hit-uav"
+            dataset = yaml_path.parent.name
         parts = [dataset, Path(self.model).stem, str(self.imgsz)]
         if self.tag:
             parts.append(self.tag)
@@ -134,6 +137,7 @@ class Experiment:
         metrics = self.model.val(
             data=self.cfg.data_yaml, split=split, imgsz=self.cfg.imgsz, conf=conf,
             project=str(self.run_dir), name=f"eval_{split}", exist_ok=True,
+            classes=self.cfg.train_args.get("classes"),  # mismas clases que en train (ej. sin DontCare en IR)
         )
         box = metrics.box
         rows = [{"clase": "all", "P": box.mp, "R": box.mr, "mAP50": box.map50, "mAP50-95": box.map}]

@@ -188,6 +188,9 @@ def test_run_name():
     cfg.tag = "cosLR"
     assert cfg.run_name("20260925-1530") == "visdrone_yolo11s_1024_cosLR_20260925-1530", cfg.run_name("20260925-1530")
 
+    cfg = ExperimentConfig(data_yaml="/content/datasets/hituav/hit-uav/dataset_local.yaml", out_dir="x", model="yolov8s.pt", imgsz=640)
+    assert cfg.run_name("20260925-1530") == "hit-uav_yolov8s_640_20260925-1530", cfg.run_name("20260925-1530")
+
     print("test_run_name OK")
 
 
