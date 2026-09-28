@@ -35,6 +35,7 @@ skills-lock.json
 .claude/
 
 # carpetas 
-investigacion/
 outdated/
-docs/
+
+# archivos
+investigacion/proceso.md
