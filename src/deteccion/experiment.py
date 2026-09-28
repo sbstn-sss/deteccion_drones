@@ -12,7 +12,7 @@ import pandas as pd
 import yaml
 
 from deteccion import data as data_mod
-from deteccion import env
+from deteccion import env, viz
 
 SORT_KEYS = {"date", "mAP50", "mAP50-95"}
 
@@ -141,6 +141,44 @@ class Experiment:
             p, r, ap50, ap = box.class_result(i)
             rows.append({"clase": metrics.names[int(c)], "P": p, "R": r, "mAP50": ap50, "mAP50-95": ap})
         return pd.DataFrame(rows).set_index("clase")
+
+    def show_pred_vs_gt(self, split: str = "test", n: int = 3, seed: int = 0, conf: float = 0.25):
+        """n imagenes al azar del split: prediccion de best.pt arriba, ground truth abajo."""
+        d = data_mod.load_data_yaml(self.cfg.data_yaml)
+        if d["splits"].get(split) is None:
+            raise ValueError(f"El yaml {self.cfg.data_yaml} no tiene split '{split}'")
+        images = data_mod.index_split(d, split)
+        sample = images.sample(n=min(n, len(images)), random_state=seed)  # solo se leen los labels de la muestra
+        boxes, _ = data_mod.load_boxes(sample, d["names"])
+        return viz.show_pred_vs_gt(self.model, sample, boxes, d["names"], n=n, seed=seed, conf=conf, imgsz=self.cfg.imgsz)
+
+    def _video_out(self, video: str | Path, kind: str) -> tuple[Path, Path, str]:
+        video = env.drive_path(video)
+        if not video.exists():
+            raise FileNotFoundError(f"No se encontro el video: {video}")
+        return video, self.run_dir / "videos", f"{video.stem}_{kind}"
+
+    def predict_video(self, video: str | Path, conf: float = 0.25, **kw) -> Path:
+        """Detecta en cada frame y guarda el video anotado en run_dir/videos/<video>_predict."""
+        video, project, name = self._video_out(video, "predict")
+        # stream=True: no acumula los resultados de todos los frames en RAM.
+        for _ in self.model.predict(source=str(video), imgsz=self.cfg.imgsz, conf=conf, save=True, stream=True,
+                                    project=str(project), name=name, exist_ok=True, verbose=False, **kw):
+            pass
+        return project / name
+
+    def track(self, video: str | Path, tracker: str = "botsort.yaml", conf: float = 0.15, iou: float = 0.5,
+              **kw) -> Path:
+        """Tracking en el video; guarda el video con IDs en run_dir/videos/<video>_track."""
+        video, project, name = self._video_out(video, "track")
+        results = self.model.track(source=str(video), imgsz=self.cfg.imgsz, conf=conf, iou=iou, tracker=tracker,
+                                   save=True, stream=True, persist=True, project=str(project), name=name,
+                                   exist_ok=True, verbose=False, **kw)
+        for i, r in enumerate(results):
+            if i % 30 == 0:
+                n_ids = 0 if r.boxes.id is None else len(r.boxes.id)
+                print(f"frame {i}: {n_ids} objetos con id")
+        return project / name
 
 
 def list_runs(out_dir: str | Path, sort: str = "date") -> pd.DataFrame:

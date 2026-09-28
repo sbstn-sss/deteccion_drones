@@ -225,6 +225,40 @@ def test_list_runs_y_load():
     print("test_list_runs_y_load OK")
 
 
+def test_show_pred_vs_gt_con_modelo_falso():
+    import numpy as np
+    from deteccion.experiment import Experiment, ExperimentConfig
+
+    class FakeResult:
+        boxes = [0, 0]
+
+        def plot(self):
+            return np.zeros((50, 100, 3), dtype=np.uint8)
+
+    class FakeModel:
+        def predict(self, **kw):
+            return [FakeResult()]
+
+    with tempfile.TemporaryDirectory() as tmp:
+        tmp = Path(tmp)
+        (tmp / "images" / "test").mkdir(parents=True)
+        (tmp / "labels" / "test").mkdir(parents=True)
+        for i in range(4):
+            Image.new("RGB", (100, 50)).save(tmp / "images" / "test" / f"img{i}.jpg")
+            (tmp / "labels" / "test" / f"img{i}.txt").write_text("0 0.5 0.5 0.2 0.2\n")
+        yaml_path = tmp / "d.yaml"
+        yaml_path.write_text(yaml.safe_dump({"path": str(tmp), "train": "images/test", "val": "images/test",
+                                             "test": "images/test", "names": ["car"]}))
+
+        exp = Experiment(ExperimentConfig(data_yaml=str(yaml_path), out_dir=str(tmp)), run_name="r")
+        exp._model = FakeModel()
+        fig = exp.show_pred_vs_gt(n=3, seed=0)
+        assert len(fig.axes) == 6, len(fig.axes)
+        assert fig.axes[3].get_title().endswith("1 objetos"), fig.axes[3].get_title()
+
+    print("test_show_pred_vs_gt_con_modelo_falso OK")
+
+
 if __name__ == "__main__":
     test_load_boxes()
     test_index_split()
@@ -234,4 +268,5 @@ if __name__ == "__main__":
     test_unzip_once()
     test_run_name()
     test_list_runs_y_load()
+    test_show_pred_vs_gt_con_modelo_falso()
     print("Todos los tests pasaron.")
