@@ -55,3 +55,8 @@
 - Resultado de la prueba local de VRAM (decide si hace falta la VM o no).
 - Textura satelital (Sentinel-2): opcional, al final.
 - Scripts a escribir: `generar_mundo.py`, `extraer_gt.py`, detector oráculo, lanzador de escenarios en lote, análisis de error.
+
+
+
+
+

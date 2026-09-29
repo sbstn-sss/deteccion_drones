@@ -335,7 +335,7 @@ DATASET_ZIP = "MyDrive/deteccion_drones/hit-uav.zip"  # bajado desde la web de K
 DATASET_DIR = "hituav"
 DATA_YAML   = "hit-uav/dataset.yaml"               # VERIFICAR tras descargar
 OUT_DIR     = "MyDrive/deteccion_drones/runs/ir"
-MODEL       = "yolov8s.pt"
+MODEL       = "yolo11s.pt"                         # decidido 2026-09-28: misma precision que v8s con ~25% menos GFLOPs
 EPOCHS, IMGSZ, BATCH = 100, 640, 16                # imagenes 640x512
 TRAIN_ARGS  = dict(patience=20, workers=2)         # + classes=[...] segun decision DontCare
 ```
