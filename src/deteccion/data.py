@@ -2,7 +2,9 @@
 
 from __future__ import annotations
 
+import os
 import random
+import shutil
 from pathlib import Path
 
 import pandas as pd
@@ -206,3 +208,72 @@ def class_counts(boxes: pd.DataFrame) -> pd.DataFrame:
     else:
         table["pct_train"] = 0.0
     return table
+
+
+def remap_dataset(yaml_path: str | Path, mapping: dict[str, str | None], out_dir: str | Path) -> Path:
+    """Crea una copia del dataset con clases fusionadas, renombradas o eliminadas, por NOMBRE de clase.
+
+    mapping: {"pedestrian": "person", "people": "person"} fusiona; {"DontCare": None} elimina esa clase.
+    Las clases que no aparecen en mapping quedan igual. Los indices nuevos siguen el orden de las clases originales.
+    Solo se reescriben las labels; las imagenes son hardlinks (no ocupan espacio extra). Nada de symlinks de
+    carpeta: Ultralytics resuelve la ruta real del split y terminaria leyendo las labels originales.
+    Idempotente (marcador out_dir/.done): si cambia mapping, usar otro out_dir.
+    Devuelve out_dir/<nombre de out_dir>.yaml (ese nombre aparece en el nombre de los runs).
+    """
+    out_dir = Path(out_dir)
+    out_yaml = out_dir / f"{out_dir.name}.yaml"
+    if (out_dir / ".done").exists():
+        return out_yaml
+
+    src = load_data_yaml(yaml_path)
+    new_names: list[str] = []
+    old_to_new: dict[int, int | None] = {}
+    for old_idx, name in sorted(src["names"].items()):
+        target = mapping.get(name, name)
+        if target is None:
+            old_to_new[old_idx] = None
+            continue
+        if target not in new_names:
+            new_names.append(target)
+        old_to_new[old_idx] = new_names.index(target)
+
+    raw = yaml.safe_load(Path(yaml_path).read_text(encoding="utf-8"))
+    for split, img_dir in src["splits"].items():
+        if img_dir is None:
+            continue
+        for row in index_split(src, split).itertuples():
+            dst_img = out_dir / row.image_path.relative_to(src["root"])
+            dst_img.parent.mkdir(parents=True, exist_ok=True)
+            if not dst_img.exists():
+                try:
+                    os.link(row.image_path, dst_img)
+                except OSError:  # otro disco o sistema sin hardlinks: copia
+                    shutil.copy2(row.image_path, dst_img)
+            if row.has_label:
+                dst_lbl = out_dir / row.label_path.relative_to(src["root"])
+                dst_lbl.parent.mkdir(parents=True, exist_ok=True)
+                dst_lbl.write_text(_remap_label_text(row.label_path.read_text(encoding="utf-8"), old_to_new),
+                                   encoding="utf-8")
+        raw[split] = str(img_dir.relative_to(src["root"]))
+
+    raw["path"] = str(out_dir)
+    raw["names"] = dict(enumerate(new_names))
+    raw.pop("nc", None)  # Ultralytics lo deduce de names; uno viejo quedaria inconsistente
+    out_yaml.write_text(yaml.safe_dump(raw, allow_unicode=True, sort_keys=False), encoding="utf-8")
+    (out_dir / ".done").touch()
+    print(f"Dataset remapeado en {out_dir}: {dict(enumerate(new_names))}")
+    return out_yaml
+
+
+def _remap_label_text(text: str, old_to_new: dict[int, int | None]) -> str:
+    out = []
+    for line in text.splitlines():
+        parts = line.split()
+        try:
+            new = old_to_new.get(int(float(parts[0])), -1) if parts else -1
+        except ValueError:
+            new = -1
+        if new is None:
+            continue  # clase eliminada
+        out.append(line if new == -1 else " ".join([str(new), *parts[1:]]))  # -1: linea rara, se deja tal cual
+    return "\n".join(out) + ("\n" if out else "")

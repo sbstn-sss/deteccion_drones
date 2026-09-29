@@ -262,6 +262,45 @@ def test_show_pred_vs_gt_con_modelo_falso():
     print("test_show_pred_vs_gt_con_modelo_falso OK")
 
 
+def test_remap_dataset():
+    from PIL import Image
+
+    with tempfile.TemporaryDirectory() as tmp:
+        tmp = Path(tmp)
+        src = tmp / "src"
+        (src / "tr" / "images").mkdir(parents=True)
+        (src / "tr" / "labels").mkdir(parents=True)
+        Image.new("RGB", (10, 10)).save(src / "tr" / "images" / "a.jpg")
+        Image.new("RGB", (10, 10)).save(src / "tr" / "images" / "b.jpg")  # sin label: background
+        (src / "tr" / "labels" / "a.txt").write_text(
+            "0 0.5 0.5 0.1 0.1\n1 0.4 0.4 0.1 0.1\n2 0.3 0.3 0.1 0.1\n3 0.2 0.2 0.1 0.1\n")
+        yaml_path = src / "d.yaml"
+        yaml_path.write_text(yaml.safe_dump({"path": str(src), "train": "tr/images", "val": "tr/images",
+                                             "names": ["pedestrian", "people", "car", "DontCare"], "nc": 4}))
+
+        out = data.remap_dataset(yaml_path, {"pedestrian": "person", "people": "person", "DontCare": None},
+                                 tmp / "visdrone_person")
+
+        assert out == tmp / "visdrone_person" / "visdrone_person.yaml"
+        d = data.load_data_yaml(out)
+        assert d["names"] == {0: "person", 1: "car"}, d["names"]
+        assert d["root"] == tmp / "visdrone_person"
+        lines = (tmp / "visdrone_person" / "tr" / "labels" / "a.txt").read_text().splitlines()
+        assert [l.split()[0] for l in lines] == ["0", "0", "1"], lines  # DontCare eliminada
+        assert lines[1] == "0 0.4 0.4 0.1 0.1"
+        assert (tmp / "visdrone_person" / "tr" / "images" / "b.jpg").exists()
+        assert not (tmp / "visdrone_person" / "tr" / "labels" / "b.txt").exists()
+        assert "nc" not in yaml.safe_load(out.read_text())
+        # el original no se toca
+        assert (src / "tr" / "labels" / "a.txt").read_text().startswith("0 0.5")
+        # idempotente: segunda llamada no reescribe
+        (tmp / "visdrone_person" / "tr" / "labels" / "a.txt").write_text("marca")
+        data.remap_dataset(yaml_path, {}, tmp / "visdrone_person")
+        assert (tmp / "visdrone_person" / "tr" / "labels" / "a.txt").read_text() == "marca"
+
+    print("test_remap_dataset OK")
+
+
 if __name__ == "__main__":
     test_load_boxes()
     test_index_split()
@@ -272,4 +311,5 @@ if __name__ == "__main__":
     test_run_name()
     test_list_runs_y_load()
     test_show_pred_vs_gt_con_modelo_falso()
+    test_remap_dataset()
     print("Todos los tests pasaron.")
