@@ -301,6 +301,53 @@ def test_remap_dataset():
     print("test_remap_dataset OK")
 
 
+def test_person_eval():
+    import numpy as np
+    from types import SimpleNamespace
+    from deteccion import person_eval as pe
+
+    # tiles: 4K con recortes de 1280 y 20% de solape -> 4 x 2, todos 1280, el ultimo pegado al borde
+    t = pe.tiles(3840, 2160, 1280, 0.2)
+    assert len(t) == 8 and {(w, h) for _, _, w, h in t} == {(1280, 1280)}, t
+    assert max(x + w for x, _, w, _ in t) == 3840 and max(y + h for _, y, _, h in t) == 2160
+    assert pe.tiles(100, 50, 1280, 0.2) == [(0, 0, 100, 50)]
+
+    gt = np.array([[0, 0, 10, 10], [20, 20, 30, 30]], dtype=float)
+    assert pe.match(np.array([[0, 0, 10, 10], [50, 50, 60, 60]], float), np.array([0.9, 0.8]), gt) == (1, 1, 1)
+    assert pe.match(np.array([[0, 0, 10, 10], [0, 0, 10, 10]], float), np.array([0.9, 0.8]), gt[:1]) == (1, 1, 0)
+
+    class FakeModel:
+        names = {0: "pedestrian", 1: "people", 2: "car"}
+
+        def predict(self, source, imgsz, conf, classes, verbose):
+            assert classes == [0, 1], classes
+            # por recorte: la misma persona como pedestrian y people (duplicado) + un falso positivo de baja confianza
+            xyxy = np.array([[10, 10, 30, 40], [11, 10, 30, 41], [60, 60, 80, 90]], dtype=float)
+            confs = np.array([0.9, 0.8, 0.3])
+            keep = confs >= conf
+            return [SimpleNamespace(boxes=SimpleNamespace(xyxy=xyxy[keep], conf=confs[keep])) for _ in source]
+
+    with tempfile.TemporaryDirectory() as tmp:
+        tmp = Path(tmp)
+        (tmp / "img").mkdir()
+        (tmp / "lbl").mkdir()
+        Image.new("RGB", (200, 100)).save(tmp / "img" / "a.jpg")
+        # personas reales en (10,10)-(30,40) y, para el caso por recortes, en (110,10)-(130,40)
+        (tmp / "lbl" / "a.txt").write_text("0 0.1 0.25 0.1 0.3\n0 0.6 0.25 0.1 0.3\n")
+
+        full = pe.evaluate_persons(FakeModel(), tmp / "img", tmp / "lbl", conf_thresholds=(0.25, 0.5))
+        assert tuple(full.loc[0.25, ["TP", "FP", "FN"]]) == (1, 1, 1), full  # duplicado unido por NMS
+        assert tuple(full.loc[0.5, ["TP", "FP", "FN"]]) == (1, 0, 1), full
+
+        tiled = pe.evaluate_persons(FakeModel(), tmp / "img", tmp / "lbl", conf_thresholds=(0.5,), tile=100, overlap=0)
+        assert tuple(tiled.loc[0.5, ["TP", "FP", "FN"]]) == (2, 0, 0), tiled  # offset del 2do recorte aplicado
+
+        fig = pe.show_persons(FakeModel(), tmp / "img", tmp / "lbl", n=1, conf=0.5)
+        assert "TP 1  FP 0  FN 1" in fig.axes[0].get_title(), fig.axes[0].get_title()
+
+    print("test_person_eval OK")
+
+
 if __name__ == "__main__":
     test_load_boxes()
     test_index_split()
@@ -312,4 +359,5 @@ if __name__ == "__main__":
     test_list_runs_y_load()
     test_show_pred_vs_gt_con_modelo_falso()
     test_remap_dataset()
+    test_person_eval()
     print("Todos los tests pasaron.")
